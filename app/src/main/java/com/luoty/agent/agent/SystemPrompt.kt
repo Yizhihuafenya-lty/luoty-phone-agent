@@ -36,7 +36,7 @@ object SystemPrompt {
             if (planMode) {
                 append("\n\n## 计划模式（开启）\n")
                 append("现在只做分析和计划：先读必要的文件，然后输出一份可执行的步骤清单（改哪些文件、怎么改、怎么验证）。")
-                append("不要调用 write_file / edit_file / delete_path / run_command，等用户确认计划后再执行。")
+                append("不要调用 write_file / edit_file / delete_path / run_command，也不要 ssh_exec / 起服务；等用户确认计划后切到「建造」再执行。")
             }
 
             if (settings.teamMode) {

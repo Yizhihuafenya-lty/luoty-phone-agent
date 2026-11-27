@@ -22,7 +22,10 @@ private const val MAX_READ_LINES = 800
  * Agent 可用的本地工具：全部限制在应用私有工作区里，路径越界会被拒绝。
  * 这就是"手机上的 DSH"能真正改代码的部分。
  */
-class ToolRegistry(context: Context) {
+class ToolRegistry(
+    context: Context,
+    private val settingsStore: com.luoty.agent.data.SettingsStore,
+) {
 
     val workspace: File = File(context.filesDir, "workspace").also { it.mkdirs() }
     private var activeRoot: File = workspace
@@ -30,6 +33,7 @@ class ToolRegistry(context: Context) {
     private val webServer = LocalWebServer()
     private val serverStore = com.luoty.agent.data.ServerStore(context)
     private val ssh = SshManager(serverStore, File(context.filesDir, "ssh_audit.log"))
+    private val search = WebSearch { settingsStore.load() }
 
     val specs: List<ToolSpec> = listOf(
         ToolSpec(
@@ -210,6 +214,7 @@ class ToolRegistry(context: Context) {
                     "run_command" -> runCommand(args)
                     "start_web_server" -> startWebServer(args)
                     "stop_web_server" -> stopWebServer()
+                    "web_search" -> webSearch(args)
                     "ssh_list_servers" -> sshListServers()
                     "ssh_exec" -> sshExec(args)
                     else -> throw ToolException("未知工具：$name")
@@ -399,6 +404,14 @@ class ToolRegistry(context: Context) {
         if (!webServer.isRunning) return "当前没有在运行的静态服务"
         webServer.stop()
         return "已停止静态服务"
+    }
+
+    private suspend fun webSearch(args: JSONObject): String {
+        val query = args.optString("query").trim()
+        if (query.isBlank()) throw ToolException("query 不能为空")
+        val hits = search.search(query, args.optInt("max_results", 5))
+        if (hits.isEmpty()) return "没有搜到结果（检查网络，或在设置里配置 Tavily/Brave/Serper 的 API Key）"
+        return hits.joinToString("\n\n") { "· ${it.title}\n  ${it.url}\n  ${it.snippet}" }
     }
 
     private fun sshListServers(): String {

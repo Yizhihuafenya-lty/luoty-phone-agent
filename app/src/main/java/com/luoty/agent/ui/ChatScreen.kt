@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.rounded.AttachFile
+import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ModelTraining
@@ -398,6 +400,7 @@ fun ChatScreen(
             running = running,
             enabled = session != null,
             planMode = session?.planMode == true,
+            onTogglePlanMode = { vm.togglePlanMode() },
             compacting = session?.compacting == true,
             summaryCount = session?.summaryCount ?: 0,
             permission = settings.permissionMode,
@@ -677,6 +680,7 @@ private fun Composer(
     running: Boolean,
     enabled: Boolean,
     planMode: Boolean,
+    onTogglePlanMode: () -> Unit,
     compacting: Boolean,
     summaryCount: Int,
     permission: String,
@@ -962,6 +966,13 @@ private fun Composer(
                         )
                     }
                 }
+                Spacer(Modifier.width(8.dp))
+                Chip(
+                    icon = if (planMode) Icons.Rounded.Map else Icons.Rounded.Build,
+                    text = if (planMode) "计划" else "建造",
+                    tint = if (planMode) Color(0xFFD7BA7D) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = onTogglePlanMode,
+                )
                 Spacer(Modifier.width(8.dp))
                 if (activeServer.isNotBlank()) {
                     Chip(

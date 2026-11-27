@@ -24,6 +24,8 @@ data class AppSettings(
     val reasoningEffort: String = "default",
     val teamMode: Boolean = false,
     val busyBehavior: String = BUSY_QUEUE,
+    val searchProvider: String = "none",
+    val searchApiKey: String = "",
 ) {
     val isReady: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
     /** 粗略估算可容纳的字符数（按 3 字符/token 计） */
@@ -107,6 +109,8 @@ class SettingsStore(context: Context) {
         teamMode = prefs.getBoolean(KEY_TEAM, false),
         busyBehavior = prefs.getString(KEY_BUSY, BUSY_QUEUE) ?: BUSY_QUEUE,
         providerName = prefs.getString(KEY_PROVIDER_NAME, "") ?: "",
+        searchProvider = prefs.getString(KEY_SEARCH_PROVIDER, "none") ?: "none",
+        searchApiKey = prefs.getString(KEY_SEARCH_KEY, "") ?: "",
     )
 
     fun save(settings: AppSettings) {
@@ -131,6 +135,8 @@ class SettingsStore(context: Context) {
             .putString(KEY_REASONING, settings.reasoningEffort)
             .putBoolean(KEY_TEAM, settings.teamMode)
             .putString(KEY_BUSY, settings.busyBehavior)
+            .putString(KEY_SEARCH_PROVIDER, settings.searchProvider)
+            .putString(KEY_SEARCH_KEY, settings.searchApiKey)
             .apply()
     }
 
@@ -155,5 +161,7 @@ class SettingsStore(context: Context) {
         const val KEY_REASONING = "reasoning_effort"
         const val KEY_TEAM = "team_mode"
         const val KEY_BUSY = "busy_behavior"
+        const val KEY_SEARCH_PROVIDER = "search_provider"
+        const val KEY_SEARCH_KEY = "search_key"
     }
 }

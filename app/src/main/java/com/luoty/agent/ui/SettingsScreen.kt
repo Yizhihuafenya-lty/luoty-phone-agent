@@ -434,6 +434,42 @@ fun SettingsScreen(vm: AgentViewModel, settings: AppSettings, onBack: () -> Unit
                 )
             }
 
+            SettingsCard("联网搜索") {
+                Text(
+                    "Agent 需要时效信息时会调用 web_search。优先用搜索 API；没配 Key 或调用失败会自动退回 DuckDuckGo。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    PermissionPill("关闭", draft.searchProvider == "none") {
+                        draft = draft.copy(searchProvider = "none")
+                    }
+                    PermissionPill("Tavily", draft.searchProvider == "tavily") {
+                        draft = draft.copy(searchProvider = "tavily")
+                    }
+                    PermissionPill("Brave", draft.searchProvider == "brave") {
+                        draft = draft.copy(searchProvider = "brave")
+                    }
+                    PermissionPill("Serper", draft.searchProvider == "serper") {
+                        draft = draft.copy(searchProvider = "serper")
+                    }
+                }
+                OutlinedTextField(
+                    value = draft.searchApiKey,
+                    onValueChange = { draft = draft.copy(searchApiKey = it) },
+                    label = { Text("搜索 API Key") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Tavily: tavily.com · Brave: api.search.brave.com · Serper: serper.dev；留空则只用 DuckDuckGo。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            }
+
             SettingsCard("系统提示词") {
                 OutlinedTextField(
                     value = draft.systemPrompt,

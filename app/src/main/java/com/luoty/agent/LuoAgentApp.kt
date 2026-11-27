@@ -16,7 +16,7 @@ class AppContainer(context: Context) {
     val serverStore = com.luoty.agent.data.ServerStore(context)
     val projectStore = com.luoty.agent.data.ProjectStore(context)
     val repo = SessionRepository(context)
-    val tools = ToolRegistry(context)
+    val tools = ToolRegistry(context, settingsStore)
     val attachments = AttachmentStore(context)
     val client = DeepSeekClient()
     val engine = AgentEngine(repo, client, tools, attachments, serverStore)

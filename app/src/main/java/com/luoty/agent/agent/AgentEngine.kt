@@ -528,8 +528,16 @@ class AgentEngine(
     ): String? {
         val session = repo.find(sessionId)
         val write = call.name in WRITE_TOOLS
-        if (write && session?.planMode == true) {
-            return "计划模式：写操作被拒绝。请先输出计划，等用户确认后再执行。"
+        if (session?.planMode == true) {
+            val blocked = call.name in setOf(
+                "write_file", "edit_file", "delete_path", "run_command",
+                "ssh_exec", "start_web_server", "stop_web_server",
+            )
+            if (blocked) {
+                return "计划模式：这个工具会改动文件或执行命令，已被拒绝。" +
+                    "请只做调研（read_file / list_files / search_files / web_search），然后输出可执行的计划。" +
+                    "用户确认计划后，切到「建造」再执行。"
+            }
         }
         if (write && settings.permissionMode == PERM_READONLY) {
             return "只读模式：写操作被拒绝。可以在设置或输入栏切换权限。"
