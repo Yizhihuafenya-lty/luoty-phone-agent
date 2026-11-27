@@ -1,0 +1,28 @@
+# Gradle / Android
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+
+# 构建与本地产物
+dist/*.apk.sha256
+build-*.log
+mock.log
+mock.err.log
+screenshots/*.png
+
+# 系统
+.DS_Store
+Thumbs.db
+
+tools/cloudflared-linux-amd64
+tools/deploy_key
+tools/deploy_key.pub
+server/testrun/
+server/*.log
+
+dist/*.apk
+dist/*.aab
