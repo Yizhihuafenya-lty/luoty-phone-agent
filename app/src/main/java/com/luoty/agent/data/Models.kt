@@ -191,6 +191,7 @@ data class Session(
     val tasks: List<TaskItem> = emptyList(),
     val queue: List<QueuedMessage> = emptyList(),
     val activeServerId: String = "",
+    val projectId: String = "",
 ) {
     val isBlank: Boolean get() = messages.isEmpty()
 
@@ -208,6 +209,7 @@ data class Session(
         if (tasks.isNotEmpty()) put("tasks", JSONArray(tasks.map { it.toJson() }))
         if (queue.isNotEmpty()) put("queue", JSONArray(queue.map { it.toJson() }))
         put("activeServerId", activeServerId)
+        put("projectId", projectId)
     }
 
     companion object {
@@ -231,6 +233,7 @@ data class Session(
                 (0 until arr.length()).map { QueuedMessage.fromJson(arr.getJSONObject(it)) }
             }.orEmpty(),
             activeServerId = o.optString("activeServerId", ""),
+            projectId = o.optString("projectId", ""),
         )
     }
 }

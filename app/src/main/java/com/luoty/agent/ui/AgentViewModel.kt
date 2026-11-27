@@ -47,9 +47,13 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsStore = container.settingsStore
     private val providerStore = container.providerStore
     private val serverStore = container.serverStore
+    private val projectStore = container.projectStore
     val repo = container.repo
     val engine = container.engine
     val tools = container.tools
+
+    private val _projects = MutableStateFlow(projectStore.load())
+    val projects: StateFlow<List<com.luoty.agent.data.Project>> = _projects.asStateFlow()
 
     private val _servers = MutableStateFlow(serverStore.load())
     val servers: StateFlow<List<com.luoty.agent.data.SshServer>> = _servers.asStateFlow()
@@ -125,10 +129,21 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------ 会话
 
-    fun newSession() {
-        val created = repo.createSession()
+    fun newSession(projectId: String = "") {
+        val created = repo.createSession(projectId = projectId)
         _currentSessionId.value = created.id
         _screen.value = Screen.CHAT
+    }
+
+    fun createProject(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        val project = com.luoty.agent.data.Project(name = trimmed)
+        java.io.File(tools.workspace, "projects/${project.id}").mkdirs()
+        _projects.value = _projects.value + project
+        projectStore.save(_projects.value)
+        newSession(project.id)
+        toast("已创建项目「$trimmed」，之后的会话都写进同一个文件夹")
     }
 
     fun selectSession(id: String) {

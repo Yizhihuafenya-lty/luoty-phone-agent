@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -56,10 +57,13 @@ import java.util.Locale
 @Composable
 fun SessionDrawer(
     sessions: List<Session>,
+    projects: List<com.luoty.agent.data.Project>,
     currentId: String?,
     model: String,
     onSelect: (String) -> Unit,
     onNew: () -> Unit,
+    onNewInProject: (String) -> Unit,
+    onCreateProject: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
     onSettings: () -> Unit,
@@ -67,6 +71,8 @@ fun SessionDrawer(
 ) {
     var renameTarget by remember { mutableStateOf<Session?>(null) }
     var deleteTarget by remember { mutableStateOf<Session?>(null) }
+    var showProjectDialog by remember { mutableStateOf(false) }
+    var projectName by remember { mutableStateOf("") }
 
     ModalDrawerSheet(
         drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -110,6 +116,86 @@ fun SessionDrawer(
                 Icon(Icons.Rounded.Add, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("新建会话")
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 8.dp, top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "项目",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = {
+                    projectName = ""
+                    showProjectDialog = true
+                }) {
+                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("新建项目", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            projects.forEach { project ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onNewInProject(project.id) }
+                        .padding(horizontal = 18.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Rounded.FolderOpen,
+                        null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(project.name, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "同一项目的会话共用一个文件夹",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(
+                        Icons.Rounded.Add,
+                        contentDescription = "在该项目下新建会话",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+            if (showProjectDialog) {
+                AlertDialog(
+                    onDismissRequest = { showProjectDialog = false },
+                    title = { Text("新建项目") },
+                    text = {
+                        OutlinedTextField(
+                            value = projectName,
+                            onValueChange = { projectName = it },
+                            label = { Text("项目名称") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            enabled = projectName.isNotBlank(),
+                            onClick = {
+                                onCreateProject(projectName)
+                                showProjectDialog = false
+                            },
+                        ) { Text("创建") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showProjectDialog = false }) { Text("取消") }
+                    },
+                )
             }
 
             Text(

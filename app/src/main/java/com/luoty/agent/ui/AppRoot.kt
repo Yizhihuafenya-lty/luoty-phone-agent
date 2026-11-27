@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 fun AppRoot(vm: AgentViewModel) {
     val screen by vm.screen.collectAsStateWithLifecycle()
     val sessions by vm.sessions.collectAsStateWithLifecycle()
+    val projects by vm.projects.collectAsStateWithLifecycle()
     val currentSession by vm.currentSession.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -45,12 +46,18 @@ fun AppRoot(vm: AgentViewModel) {
         drawerContent = {
             SessionDrawer(
                 sessions = sessions,
+                projects = projects,
                 currentId = currentSession?.id,
                 model = settings.model,
                 onSelect = { id ->
                     vm.selectSession(id)
                     scope.launch { drawerState.close() }
                 },
+                onNewInProject = { projectId ->
+                    vm.newSession(projectId)
+                    scope.launch { drawerState.close() }
+                },
+                onCreateProject = { name -> vm.createProject(name) },
                 onNew = {
                     vm.newSession()
                     scope.launch { drawerState.close() }

@@ -15,6 +15,7 @@ import com.luoty.agent.net.ApiException
 import com.luoty.agent.net.ApiMessage
 import com.luoty.agent.net.ApiToolCall
 import com.luoty.agent.net.DeepSeekClient
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -487,7 +488,7 @@ class AgentEngine(
                     })
                 }
                 val toolStart = System.currentTimeMillis()
-                val outcome = tools.execute(call.name, call.arguments)
+                val outcome = tools.execute(call.name, call.arguments, workspaceFor(sessionId))
                 val duration = System.currentTimeMillis() - toolStart
                 repo.updateMessage(sessionId, placeholder.id) { msg ->
                     msg.copy(toolCalls = msg.toolCalls.map {
@@ -617,11 +618,43 @@ class AgentEngine(
 
     // ---------------------------------------------------------------- 上下文构建
 
+    private fun workspaceFor(sessionId: String): File {
+        val session = repo.find(sessionId)
+            ?: return File(tools.workspace, "sessions/$sessionId").also { it.mkdirs() }
+        val dir = if (session.projectId.isNotBlank()) {
+            File(tools.workspace, "projects/${session.projectId}")
+        } else {
+            File(tools.workspace, "sessions/${session.id}")
+        }
+        dir.mkdirs()
+        if (session.projectId.isBlank()) {
+            // 老版本的文件都在共享根目录，第一次进入会话文件夹时复制一份，避免“文件消失”
+            val marker = File(dir, ".seeded")
+            if (!marker.exists()) {
+                runCatching {
+                    tools.workspace.listFiles()?.forEach { source ->
+                        if (source.name == "sessions" || source.name == "projects") return@forEach
+                        val target = File(dir, source.name)
+                        if (!target.exists()) {
+                            if (source.isDirectory) {
+                                source.copyRecursively(target, overwrite = false)
+                            } else {
+                                source.copyTo(target)
+                            }
+                        }
+                    }
+                    marker.createNewFile()
+                }
+            }
+        }
+        return dir
+    }
+
     private fun buildApiMessages(session: Session, settings: AppSettings): List<ApiMessage> {
         val out = ArrayList<ApiMessage>()
         val basePrompt = SystemPrompt.build(
             settings = settings,
-            workspacePath = tools.workspace.absolutePath,
+            workspacePath = workspaceFor(session.id).absolutePath,
             goal = if (session.goalEnabled) session.goal else "",
             planMode = session.planMode,
             summary = session.summary,
@@ -662,7 +695,7 @@ class AgentEngine(
             SystemPrompt.runtimeContext(
                 settings = settings,
                 session = session,
-                workspacePath = tools.workspace.absolutePath,
+                workspacePath = workspaceFor(session.id).absolutePath,
                 serverLabel = activeServer?.let { "${it.label}（${it.target}）" }.orEmpty(),
             ),
         )

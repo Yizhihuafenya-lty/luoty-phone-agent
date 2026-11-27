@@ -14,6 +14,7 @@ class AppContainer(context: Context) {
     val settingsStore = SettingsStore(context)
     val providerStore = ProviderStore(context)
     val serverStore = com.luoty.agent.data.ServerStore(context)
+    val projectStore = com.luoty.agent.data.ProjectStore(context)
     val repo = SessionRepository(context)
     val tools = ToolRegistry(context)
     val attachments = AttachmentStore(context)

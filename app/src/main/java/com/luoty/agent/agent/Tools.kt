@@ -25,6 +25,7 @@ private const val MAX_READ_LINES = 800
 class ToolRegistry(context: Context) {
 
     val workspace: File = File(context.filesDir, "workspace").also { it.mkdirs() }
+    private var activeRoot: File = workspace
     private val ioLock = Mutex()
     private val webServer = LocalWebServer()
     private val serverStore = com.luoty.agent.data.ServerStore(context)
@@ -188,7 +189,12 @@ class ToolRegistry(context: Context) {
 
     fun sshServers(): List<com.luoty.agent.data.SshServer> = serverStore.load()
 
-    suspend fun execute(name: String, argumentsJson: String): ToolOutcome = ioLock.withLock {
+    suspend fun execute(
+        name: String,
+        argumentsJson: String,
+        workspaceRoot: File? = null,
+    ): ToolOutcome = ioLock.withLock {
+        activeRoot = (workspaceRoot ?: workspace).also { it.mkdirs() }.canonicalFile
         withContext(Dispatchers.IO) {
             val args = runCatching { JSONObject(argumentsJson.ifBlank { "{}" }) }.getOrElse {
                 return@withContext ToolOutcome("参数不是合法 JSON：${argumentsJson.take(300)}", true)
@@ -371,7 +377,7 @@ class ToolRegistry(context: Context) {
 
     private fun deletePath(args: JSONObject): String {
         val file = resolve(args.optString("path"))
-        if (file == workspace.canonicalFile) throw ToolException("不能删除工作区根目录")
+        if (file == activeRoot) throw ToolException("不能删除工作区根目录")
         if (!file.exists()) throw ToolException("路径不存在：${rel(file)}")
         val count = countFiles(file)
         val ok = file.deleteRecursively()
@@ -426,7 +432,7 @@ class ToolRegistry(context: Context) {
         val timeout = args.optInt("timeout_seconds", 30).coerceIn(1, 120)
         val process = try {
             ProcessBuilder("/system/bin/sh", "-c", command)
-                .directory(workspace)
+                .directory(activeRoot)
                 .redirectErrorStream(true)
                 .start()
         } catch (e: Exception) {
@@ -471,7 +477,7 @@ class ToolRegistry(context: Context) {
 
     fun resolve(path: String): File {
         val raw = path.trim().ifBlank { "." }
-        val root = workspace.canonicalFile
+        val root = activeRoot
         val file = File(root, raw).canonicalFile
         if (file != root && !file.path.startsWith(root.path + File.separator)) {
             throw ToolException("路径越界，只能访问工作区内的文件：$path")
@@ -480,7 +486,7 @@ class ToolRegistry(context: Context) {
     }
 
     fun rel(file: File): String {
-        val root = workspace.canonicalFile
+        val root = activeRoot
         return file.canonicalFile.toRelativeString(root).let { if (it == ".") "" else it }
             .replace(File.separatorChar, '/')
     }

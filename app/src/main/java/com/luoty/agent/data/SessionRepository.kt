@@ -104,7 +104,7 @@ class SessionRepository(context: Context) {
 
     // ---------------------------------------------------------------- 会话操作
 
-    fun createSession(title: String = "新会话"): Session {
+    fun createSession(title: String = "新会话", projectId: String = ""): Session {
         val now = System.currentTimeMillis()
         val session = Session(
             id = UUID.randomUUID().toString(),
@@ -204,6 +204,10 @@ class SessionRepository(context: Context) {
 
     fun setTasks(sessionId: String, tasks: List<TaskItem>) {
         updateSession(sessionId) { it.copy(tasks = tasks) }
+    }
+
+    fun setProject(sessionId: String, projectId: String) {
+        updateSession(sessionId) { it.copy(projectId = projectId) }
     }
 
     fun setActiveServer(sessionId: String, serverId: String) {
