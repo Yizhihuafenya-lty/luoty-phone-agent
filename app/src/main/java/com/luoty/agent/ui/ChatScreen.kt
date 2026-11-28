@@ -408,6 +408,7 @@ fun ChatScreen(
             model = settings.model,
             contextChars = vm.contextChars(session),
             contextLimit = settings.contextWindow,
+            onCompact = { vm.compactNow() },
             activeServer = activeServer?.label.orEmpty(),
             onOpenServerSheet = { showServerSheet = true },
             goal = session?.goal.orEmpty(),
@@ -688,6 +689,7 @@ private fun Composer(
     model: String,
     contextChars: Int,
     contextLimit: Int,
+    onCompact: () -> Unit,
     activeServer: String,
     onOpenServerSheet: () -> Unit,
     goal: String,
@@ -819,6 +821,34 @@ private fun Composer(
                 )
             }
 
+            val usedRatio = if (contextLimit > 0) (contextChars / 3f) / contextLimit else 0f
+            if (usedRatio >= 0.85f) {
+                Surface(
+                    color = Color(0xFF3A2E1A),
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.padding(start = 12.dp, bottom = 6.dp),
+                ) {
+                    Row(
+                        Modifier
+                            .clickable { onCompact() }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Compress,
+                            null,
+                            tint = Color(0xFFD7BA7D),
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "上下文已用 ${(usedRatio * 100).toInt()}% · 点此压缩",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFD7BA7D),
+                        )
+                    }
+                }
+            }
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                 shape = RoundedCornerShape(26.dp),

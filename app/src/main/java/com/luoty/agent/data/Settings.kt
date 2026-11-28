@@ -8,7 +8,7 @@ data class AppSettings(
     val apiKey: String = "",
     val model: String = "deepseek-chat",
     val temperature: Float = 0.3f,
-    val maxTokens: Int = 4096,
+    val maxTokens: Int = 256_000,
     val maxSteps: Int = 24,
     val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
     val autoTitle: Boolean = true,
@@ -20,7 +20,7 @@ data class AppSettings(
     val extraHeaders: String = "",
     val providerName: String = "",
     val visionEnabled: Boolean = true,
-    val contextWindow: Int = 128_000,
+    val contextWindow: Int = 1_000_000,
     val reasoningEffort: String = "default",
     val teamMode: Boolean = false,
     val busyBehavior: String = BUSY_QUEUE,
@@ -87,12 +87,13 @@ class SettingsStore(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("luoty_agent_settings", Context.MODE_PRIVATE)
 
-    fun load(): AppSettings = AppSettings(
+    fun load(): AppSettings {
+        val settings = AppSettings(
         baseUrl = prefs.getString(KEY_BASE_URL, null) ?: "https://api.deepseek.com",
         apiKey = prefs.getString(KEY_API_KEY, "") ?: "",
         model = prefs.getString(KEY_MODEL, null) ?: "deepseek-chat",
         temperature = prefs.getFloat(KEY_TEMPERATURE, 0.3f),
-        maxTokens = prefs.getInt(KEY_MAX_TOKENS, 4096),
+        maxTokens = prefs.getInt(KEY_MAX_TOKENS, 256_000),
         maxSteps = prefs.getInt(KEY_MAX_STEPS, 24),
         systemPrompt = prefs.getString(KEY_SYSTEM_PROMPT, null)
             ?.takeUnless { it.startsWith("你是 LuoTy Agent") }
@@ -106,14 +107,20 @@ class SettingsStore(context: Context) {
         compactKeepRecent = prefs.getInt(KEY_COMPACT_KEEP, 6),
         extraHeaders = prefs.getString(KEY_EXTRA_HEADERS, "") ?: "",
         visionEnabled = prefs.getBoolean(KEY_VISION, true),
-        contextWindow = prefs.getInt(KEY_CONTEXT_WINDOW, 128_000),
+        contextWindow = prefs.getInt(KEY_CONTEXT_WINDOW, 1_000_000),
         reasoningEffort = prefs.getString(KEY_REASONING, "default") ?: "default",
         teamMode = prefs.getBoolean(KEY_TEAM, false),
         busyBehavior = prefs.getString(KEY_BUSY, BUSY_QUEUE) ?: BUSY_QUEUE,
         providerName = prefs.getString(KEY_PROVIDER_NAME, "") ?: "",
         searchProvider = prefs.getString(KEY_SEARCH_PROVIDER, "none") ?: "none",
         searchApiKey = prefs.getString(KEY_SEARCH_KEY, "") ?: "",
-    )
+        )
+        if (!prefs.getBoolean("ctx_split", false)) {
+            prefs.edit().putBoolean("ctx_split", true).apply()
+            return settings.copy(maxTokens = 256_000, contextWindow = 1_000_000)
+        }
+        return settings
+    }
 
     fun save(settings: AppSettings) {
         prefs.edit()

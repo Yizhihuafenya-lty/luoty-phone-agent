@@ -452,10 +452,20 @@ fun SettingsScreen(vm: AgentViewModel, settings: AppSettings, onBack: () -> Unit
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Text("最大输出（tokens，最多 7 位）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(128_000, 256_000, 512_000, 1_000_000).forEach { preset ->
+                            PermissionPill(
+                                label = compactTokens(preset),
+                                selected = draft.maxTokens == preset,
+                                onClick = { draft = draft.copy(maxTokens = preset) },
+                            )
+                        }
+                    }
                     NumberField(
                         label = "最大输出 tokens",
                         value = draft.maxTokens,
-                        range = 256..32768,
+                        range = 256..9_999_999,
                         onValueChange = { draft = draft.copy(maxTokens = it) },
                     )
                     NumberField(
@@ -537,10 +547,20 @@ fun SettingsScreen(vm: AgentViewModel, settings: AppSettings, onBack: () -> Unit
                         checked = draft.visionEnabled,
                         onCheckedChange = { draft = draft.copy(visionEnabled = it) },
                     )
+                    Text("输入上下文（tokens，最多 7 位）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(128_000, 256_000, 512_000, 1_000_000).forEach { preset ->
+                            PermissionPill(
+                                label = compactTokens(preset),
+                                selected = draft.contextWindow == preset,
+                                onClick = { draft = draft.copy(contextWindow = preset) },
+                            )
+                        }
+                    }
                     NumberField(
-                        label = "上下文长度（tokens）",
+                        label = "输入上下文 tokens",
                         value = draft.contextWindow,
-                        range = 2_000..2_000_000,
+                        range = 16_000..9_999_999,
                         onValueChange = { draft = draft.copy(contextWindow = it) },
                     )
                     NumberField(
@@ -798,7 +818,7 @@ private fun ServerDialog(
                         label = { Text("端口") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.width(110.dp),
+                        modifier = Modifier.width(124.dp),
                     )
                     OutlinedTextField(
                         value = username,
@@ -1486,7 +1506,7 @@ private fun NumberField(
             },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.width(110.dp),
+            modifier = Modifier.width(124.dp),
         )
     }
 }
@@ -1540,4 +1560,10 @@ private fun ProbeLine(probe: ProbeState) {
             )
         }
     }
+}
+
+private fun compactTokens(value: Int): String = when {
+    value >= 1_000_000 -> "${value / 1_000_000}M"
+    value >= 1_000 -> "${value / 1_000}K"
+    else -> value.toString()
 }
