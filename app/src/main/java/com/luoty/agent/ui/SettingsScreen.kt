@@ -74,6 +74,15 @@ import com.luoty.agent.data.BUSY_STEER
 import com.luoty.agent.data.DEFAULT_SYSTEM_PROMPT
 import com.luoty.agent.data.MODEL_PRESETS
 import com.luoty.agent.data.ModelConfig
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Compress
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.ModelTraining
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.luoty.agent.data.SshServer
 import com.luoty.agent.data.ModelProvider
 import com.luoty.agent.data.PERM_CONFIRM
@@ -85,8 +94,72 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.UUID
 
+private enum class SettingsSection(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+) {
+    MODELS("模型与接口", "提供方、模型目录、当前接口", Icons.Rounded.ModelTraining),
+    SERVERS("远程服务器", "SSH 主机与安全审核", Icons.Rounded.Dns),
+    SEARCH("联网搜索", "搜索 API 与 DuckDuckGo 回退", Icons.Rounded.Search),
+    GENERATION("生成与行为", "温度、轮数、繁忙策略、标题", Icons.Rounded.Tune),
+    CONTEXT("权限与上下文", "权限预设、压缩、多模态", Icons.Rounded.Compress),
+    PROMPT("系统提示词", "只读核心上下文 + 附加指令", Icons.Rounded.Description),
+    WORKSPACE("工作区", "文件目录、清空", Icons.Rounded.FolderOpen),
+    ABOUT("关于", "版本与隐私说明", Icons.Rounded.Info),
+}
+
+@Composable
+private fun SettingsMenu(
+    providerCount: Int,
+    serverCount: Int,
+    onSelect: (SettingsSection) -> Unit,
+) {
+    SettingsCard("设置") {
+        SettingsSection.entries.forEach { entry ->
+            val hint = when (entry) {
+                SettingsSection.MODELS -> " · $providerCount 个"
+                SettingsSection.SERVERS -> " · $serverCount 台"
+                else -> ""
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { onSelect(entry) }
+                    .padding(horizontal = 4.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    entry.icon,
+                    null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(entry.title, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        entry.subtitle + hint,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    Icons.Rounded.ChevronRight,
+                    null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        }
+    }
+}
+
 @Composable
 fun SettingsScreen(vm: AgentViewModel, settings: AppSettings, onBack: () -> Unit) {
+    var section by remember { mutableStateOf<SettingsSection?>(null) }
     var draft by remember { mutableStateOf(settings) }
     var showKey by remember { mutableStateOf(false) }
     var showClearWorkspace by remember { mutableStateOf(false) }
@@ -107,11 +180,15 @@ fun SettingsScreen(vm: AgentViewModel, settings: AppSettings, onBack: () -> Unit
             .background(MaterialTheme.colorScheme.background),
     ) {
         AppTopBar(
-            title = "设置",
-            subtitle = "DeepSeek / OpenAI 兼容接口",
-            onBack = onBack,
+            title = section?.title ?: "设置",
+            subtitle = section?.subtitle ?: "模型、搜索、服务器、权限与上下文",
+            onBack = {
+                if (section != null) section = null else onBack()
+            },
             actions = {
-                TextButton(onClick = { vm.saveSettings(draft) }) { Text("保存") }
+                if (section != null) {
+                    TextButton(onClick = { vm.saveSettings(draft) }) { Text("保存") }
+                }
             },
         )
 
@@ -122,413 +199,428 @@ fun SettingsScreen(vm: AgentViewModel, settings: AppSettings, onBack: () -> Unit
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SettingsCard("模型提供方") {
-                Text(
-                    if (providers.isEmpty()) {
-                        "还没有保存的提供方。可以手动添加，或先用内置的 OpenCode Go 预设。"
-                    } else {
-                        "点击切换当前使用的提供方；每个提供方独立保存地址、密钥和模型。"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (section == null) {
+                SettingsMenu(
+                    providerCount = providers.size,
+                    serverCount = servers.size,
+                    onSelect = { section = it },
                 )
-                providers.forEach { provider ->
-                    ProviderRow(
-                        provider = provider,
-                        active = provider.id == activeProviderId,
-                        onActivate = {
-                            vm.activateProvider(provider.id)
-                            draft = vm.settings.value
-                            vm.resetProbe()
+            }
+            if (section == SettingsSection.MODELS) {
+                SettingsCard("模型提供方") {
+                    Text(
+                        if (providers.isEmpty()) {
+                            "还没有保存的提供方。可以手动添加，或先用内置的 OpenCode Go 预设。"
+                        } else {
+                            "点击切换当前使用的提供方；每个提供方独立保存地址、密钥和模型。"
                         },
-                        onEdit = {
-                            editingProvider = provider
-                            showProviderDialog = true
-                        },
-                        onDelete = { deletingProvider = provider },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    providers.forEach { provider ->
+                        ProviderRow(
+                            provider = provider,
+                            active = provider.id == activeProviderId,
+                            onActivate = {
+                                vm.activateProvider(provider.id)
+                                draft = vm.settings.value
+                                vm.resetProbe()
+                            },
+                            onEdit = {
+                                editingProvider = provider
+                                showProviderDialog = true
+                            },
+                            onDelete = { deletingProvider = provider },
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = {
+                            editingProvider = null
+                            showProviderDialog = true
+                        }) {
+                            Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text("添加")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(onClick = {
+                            vm.addOpenCodeGoPreset()
+                            draft = vm.settings.value
+                        }) {
+                            Text("OpenCode Go 预设")
+                        }
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                SettingsCard("接口") {
+                    LabeledField(
+                        label = "Base URL",
+                        value = draft.baseUrl,
+                        placeholder = "https://api.deepseek.com",
+                        onValueChange = { draft = draft.copy(baseUrl = it) },
+                    )
+                    OutlinedTextField(
+                        value = draft.apiKey,
+                        onValueChange = { draft = draft.copy(apiKey = it) },
+                        label = { Text("API Key") },
+                        placeholder = { Text("sk-…") },
+                        singleLine = true,
+                        visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            IconButton(onClick = { showKey = !showKey }) {
+                                Icon(
+                                    if (showKey) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                    contentDescription = "显示/隐藏",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ModelSelector(draft.model) { draft = draft.copy(model = it) }
+                    if (draft.providerName.isNotBlank()) {
+                        Text(
+                            "当前提供方：${draft.providerName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = draft.extraHeaders,
+                        onValueChange = { draft = draft.copy(extraHeaders = it) },
+                        label = { Text("额外请求头（可选）") },
+                        placeholder = { Text("x-opencode-session: \${session}") },
+                        minLines = 1,
+                        maxLines = 3,
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        "每行一个 Name: value；\${session} 会替换成随机会话 ID（OpenCode Go 需要）",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = { vm.testConnection(draft) },
+                            enabled = probe !is ProbeState.Loading,
+                        ) {
+                            if (probe is ProbeState.Loading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 1.6.dp,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text("测试连接")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            "支持任何 OpenAI 兼容服务",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    ProbeLine(probe)
+                }
+            }
+            if (section == SettingsSection.SERVERS) {
+                SettingsCard("服务器") {
+                    Text(
+                        "添加 Linux 服务器后，Agent 可以在你授权下通过 SSH 执行命令；" +
+                            "主机指纹首次连接需要你确认，所有命令都会写入本机审计日志。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    servers.forEach { server ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .padding(start = 10.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Rounded.Dns,
+                                null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(server.label, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "${server.target} · " + if (server.trustedFingerprint.isBlank()) {
+                                        "未信任主机指纹"
+                                    } else {
+                                        "指纹已信任"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            IconButton(onClick = {
+                                editingServer = server
+                                showServerDialog = true
+                            }, modifier = Modifier.size(32.dp)) {
+                                Icon(
+                                    Icons.Rounded.Edit,
+                                    contentDescription = "编辑",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                            IconButton(onClick = { deletingServer = server }, modifier = Modifier.size(32.dp)) {
+                                Icon(
+                                    Icons.Rounded.Delete,
+                                    contentDescription = "删除",
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f),
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                        }
+                    }
                     OutlinedButton(onClick = {
-                        editingProvider = null
-                        showProviderDialog = true
+                        editingServer = null
+                        showServerDialog = true
                     }) {
                         Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(5.dp))
-                        Text("添加")
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = {
-                        vm.addOpenCodeGoPreset()
-                        draft = vm.settings.value
-                    }) {
-                        Text("OpenCode Go 预设")
+                        Text(if (servers.isEmpty()) "添加服务器" else "再加一台")
                     }
                 }
             }
-
-            SettingsCard("服务器") {
-                Text(
-                    "添加 Linux 服务器后，Agent 可以在你授权下通过 SSH 执行命令；" +
-                        "主机指纹首次连接需要你确认，所有命令都会写入本机审计日志。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                servers.forEach { server ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                            .padding(start = 10.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Rounded.Dns,
-                            null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(server.label, style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                "${server.target} · " + if (server.trustedFingerprint.isBlank()) {
-                                    "未信任主机指纹"
-                                } else {
-                                    "指纹已信任"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        IconButton(onClick = {
-                            editingServer = server
-                            showServerDialog = true
-                        }, modifier = Modifier.size(32.dp)) {
-                            Icon(
-                                Icons.Rounded.Edit,
-                                contentDescription = "编辑",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
-                            )
-                        }
-                        IconButton(onClick = { deletingServer = server }, modifier = Modifier.size(32.dp)) {
-                            Icon(
-                                Icons.Rounded.Delete,
-                                contentDescription = "删除",
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f),
-                                modifier = Modifier.size(14.dp),
-                            )
-                        }
-                    }
-                }
-                OutlinedButton(onClick = {
-                    editingServer = null
-                    showServerDialog = true
-                }) {
-                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text(if (servers.isEmpty()) "添加服务器" else "再加一台")
-                }
-            }
-
-            SettingsCard("接口") {
-                LabeledField(
-                    label = "Base URL",
-                    value = draft.baseUrl,
-                    placeholder = "https://api.deepseek.com",
-                    onValueChange = { draft = draft.copy(baseUrl = it) },
-                )
-                OutlinedTextField(
-                    value = draft.apiKey,
-                    onValueChange = { draft = draft.copy(apiKey = it) },
-                    label = { Text("API Key") },
-                    placeholder = { Text("sk-…") },
-                    singleLine = true,
-                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        IconButton(onClick = { showKey = !showKey }) {
-                            Icon(
-                                if (showKey) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                contentDescription = "显示/隐藏",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ModelSelector(draft.model) { draft = draft.copy(model = it) }
-                if (draft.providerName.isNotBlank()) {
+            if (section == SettingsSection.SEARCH) {
+                SettingsCard("联网搜索") {
                     Text(
-                        "当前提供方：${draft.providerName}",
+                        "Agent 需要时效信息时会调用 web_search。优先用搜索 API；没配 Key 或调用失败会自动退回 DuckDuckGo。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        PermissionPill("关闭", draft.searchProvider == "none") {
+                            draft = draft.copy(searchProvider = "none")
+                        }
+                        PermissionPill("Tavily", draft.searchProvider == "tavily") {
+                            draft = draft.copy(searchProvider = "tavily")
+                        }
+                        PermissionPill("Brave", draft.searchProvider == "brave") {
+                            draft = draft.copy(searchProvider = "brave")
+                        }
+                        PermissionPill("Serper", draft.searchProvider == "serper") {
+                            draft = draft.copy(searchProvider = "serper")
+                        }
+                    }
+                    OutlinedTextField(
+                        value = draft.searchApiKey,
+                        onValueChange = { draft = draft.copy(searchApiKey = it) },
+                        label = { Text("搜索 API Key") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        "Tavily: tavily.com · Brave: api.search.brave.com · Serper: serper.dev；留空则只用 DuckDuckGo。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                }
+            }
+            if (section == SettingsSection.GENERATION) {
+                SettingsCard("生成参数") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("温度", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            String.format("%.1f", draft.temperature),
+                            fontFamily = Mono,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Slider(
+                        value = draft.temperature,
+                        onValueChange = { draft = draft.copy(temperature = (it * 10).roundToInt() / 10f) },
+                        valueRange = 0f..1.5f,
+                    )
+                    Text(
+                        "越低越稳定、越适合改代码；越高越发散",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    NumberField(
+                        label = "最大输出 tokens",
+                        value = draft.maxTokens,
+                        range = 256..32768,
+                        onValueChange = { draft = draft.copy(maxTokens = it) },
+                    )
+                    NumberField(
+                        label = "最大工具轮数",
+                        value = draft.maxSteps,
+                        range = 1..60,
+                        onValueChange = { draft = draft.copy(maxSteps = it) },
+                    )
                 }
-                OutlinedTextField(
-                    value = draft.extraHeaders,
-                    onValueChange = { draft = draft.copy(extraHeaders = it) },
-                    label = { Text("额外请求头（可选）") },
-                    placeholder = { Text("x-opencode-session: \${session}") },
-                    minLines = 1,
-                    maxLines = 3,
-                    textStyle = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    "每行一个 Name: value；\${session} 会替换成随机会话 ID（OpenCode Go 需要）",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(
-                        onClick = { vm.testConnection(draft) },
-                        enabled = probe !is ProbeState.Loading,
-                    ) {
-                        if (probe is ProbeState.Loading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 1.6.dp,
+                SettingsCard("行为") {
+                    Text("繁忙时的发送行为", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            BUSY_QUEUE to "排队",
+                            BUSY_STEER to "插入",
+                            BUSY_INTERRUPT to "打断",
+                        ).forEach { (mode, label) ->
+                            PermissionPill(
+                                label = label,
+                                selected = draft.busyBehavior == mode,
+                                onClick = { draft = draft.copy(busyBehavior = mode) },
                             )
-                            Spacer(Modifier.width(8.dp))
                         }
-                        Text("测试连接")
                     }
-                    Spacer(Modifier.weight(1f))
                     Text(
-                        "支持任何 OpenAI 兼容服务",
+                        "智能体运行时发送消息：排队会按顺序等这轮结束；插入会立刻追加进会话、下一轮模型能看到并调整方向；打断会停掉当前生成再发。",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-                ProbeLine(probe)
-            }
-
-            SettingsCard("生成参数") {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("温度", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        String.format("%.1f", draft.temperature),
-                        fontFamily = Mono,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
+                    SwitchRow(
+                        title = "自动生成会话标题",
+                        subtitle = "用第一条消息命名新会话",
+                        checked = draft.autoTitle,
+                        onCheckedChange = { draft = draft.copy(autoTitle = it) },
+                    )
+                    SwitchRow(
+                        title = "显示思考过程",
+                        subtitle = "deepseek-reasoner 等模型的 reasoning 内容",
+                        checked = draft.showReasoning,
+                        onCheckedChange = { draft = draft.copy(showReasoning = it) },
                     )
                 }
-                Slider(
-                    value = draft.temperature,
-                    onValueChange = { draft = draft.copy(temperature = (it * 10).roundToInt() / 10f) },
-                    valueRange = 0f..1.5f,
-                )
-                Text(
-                    "越低越稳定、越适合改代码；越高越发散",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                NumberField(
-                    label = "最大输出 tokens",
-                    value = draft.maxTokens,
-                    range = 256..32768,
-                    onValueChange = { draft = draft.copy(maxTokens = it) },
-                )
-                NumberField(
-                    label = "最大工具轮数",
-                    value = draft.maxSteps,
-                    range = 1..60,
-                    onValueChange = { draft = draft.copy(maxSteps = it) },
-                )
             }
-
-            SettingsCard("行为") {
-                Text("繁忙时的发送行为", style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        BUSY_QUEUE to "排队",
-                        BUSY_STEER to "插入",
-                        BUSY_INTERRUPT to "打断",
-                    ).forEach { (mode, label) ->
-                        PermissionPill(
-                            label = label,
-                            selected = draft.busyBehavior == mode,
-                            onClick = { draft = draft.copy(busyBehavior = mode) },
+            if (section == SettingsSection.CONTEXT) {
+                SettingsCard("权限与上下文") {
+                    Text("权限预设", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            PERM_FULL to "完全权限",
+                            PERM_CONFIRM to "每次确认",
+                            PERM_READONLY to "只读",
+                        ).forEach { (mode, label) ->
+                            PermissionPill(
+                                label = label,
+                                selected = draft.permissionMode == mode,
+                                onClick = { draft = draft.copy(permissionMode = mode) },
+                            )
+                        }
+                    }
+                    Text(
+                        when (draft.permissionMode) {
+                            PERM_READONLY -> "写文件、删文件、执行命令都会被拒绝，只允许读取和搜索。"
+                            PERM_CONFIRM -> "每次写操作都会在聊天里弹出确认卡片，点「允许一次」才执行。"
+                            else -> "工具直接执行，不再询问。信任当前模型时最快。"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SwitchRow(
+                        title = "自动压缩上下文",
+                        subtitle = "接近阈值时把早期消息压缩成摘要，省 token 也不丢目标",
+                        checked = draft.autoCompact,
+                        onCheckedChange = { draft = draft.copy(autoCompact = it) },
+                    )
+                    SwitchRow(
+                        title = "多模态（可发图片）",
+                        subtitle = "关闭后图片附件不会发送给模型，PDF 文本不受影响",
+                        checked = draft.visionEnabled,
+                        onCheckedChange = { draft = draft.copy(visionEnabled = it) },
+                    )
+                    NumberField(
+                        label = "上下文长度（tokens）",
+                        value = draft.contextWindow,
+                        range = 2_000..2_000_000,
+                        onValueChange = { draft = draft.copy(contextWindow = it) },
+                    )
+                    NumberField(
+                        label = "压缩阈值（字符）",
+                        value = draft.compactThreshold,
+                        range = 20_000..400_000,
+                        onValueChange = { draft = draft.copy(compactThreshold = it) },
+                    )
+                    NumberField(
+                        label = "压缩后保留最近消息",
+                        value = draft.compactKeepRecent,
+                        range = 2..20,
+                        onValueChange = { draft = draft.copy(compactKeepRecent = it) },
+                    )
+                }
+            }
+            if (section == SettingsSection.PROMPT) {
+                SettingsCard("系统提示词") {
+                    OutlinedTextField(
+                        value = draft.systemPrompt,
+                        onValueChange = { draft = draft.copy(systemPrompt = it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 6,
+                        maxLines = 14,
+                        textStyle = MaterialTheme.typography.bodySmall,
+                    )
+                    Row {
+                        TextButton(onClick = { draft = draft.copy(systemPrompt = DEFAULT_SYSTEM_PROMPT) }) {
+                            Text("恢复默认")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            "决定 Agent 的做事方式",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.CenterVertically),
                         )
                     }
                 }
-                Text(
-                    "智能体运行时发送消息：排队会按顺序等这轮结束；插入会立刻追加进会话、下一轮模型能看到并调整方向；打断会停掉当前生成再发。",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                SwitchRow(
-                    title = "自动生成会话标题",
-                    subtitle = "用第一条消息命名新会话",
-                    checked = draft.autoTitle,
-                    onCheckedChange = { draft = draft.copy(autoTitle = it) },
-                )
-                SwitchRow(
-                    title = "显示思考过程",
-                    subtitle = "deepseek-reasoner 等模型的 reasoning 内容",
-                    checked = draft.showReasoning,
-                    onCheckedChange = { draft = draft.copy(showReasoning = it) },
-                )
             }
-
-            SettingsCard("权限与上下文") {
-                Text("权限预设", style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        PERM_FULL to "完全权限",
-                        PERM_CONFIRM to "每次确认",
-                        PERM_READONLY to "只读",
-                    ).forEach { (mode, label) ->
-                        PermissionPill(
-                            label = label,
-                            selected = draft.permissionMode == mode,
-                            onClick = { draft = draft.copy(permissionMode = mode) },
+            if (section == SettingsSection.WORKSPACE) {
+                SettingsCard("工作区") {
+                    Text(
+                        "Agent 只能读写这个目录里的文件",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Surface(
+                        color = AppColors.CodeBg,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = vm.tools.workspace.absolutePath,
+                            fontFamily = Mono,
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(8.dp),
                         )
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = { vm.openWorkspace() }) { Text("浏览文件") }
+                        Spacer(Modifier.width(10.dp))
+                        OutlinedButton(onClick = { showClearWorkspace = true }) {
+                            Text("清空工作区", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
                 }
-                Text(
-                    when (draft.permissionMode) {
-                        PERM_READONLY -> "写文件、删文件、执行命令都会被拒绝，只允许读取和搜索。"
-                        PERM_CONFIRM -> "每次写操作都会在聊天里弹出确认卡片，点「允许一次」才执行。"
-                        else -> "工具直接执行，不再询问。信任当前模型时最快。"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            }
+            if (section == SettingsSection.ABOUT) {
+
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SwitchRow(
-                    title = "自动压缩上下文",
-                    subtitle = "接近阈值时把早期消息压缩成摘要，省 token 也不丢目标",
-                    checked = draft.autoCompact,
-                    onCheckedChange = { draft = draft.copy(autoCompact = it) },
-                )
-                SwitchRow(
-                    title = "多模态（可发图片）",
-                    subtitle = "关闭后图片附件不会发送给模型，PDF 文本不受影响",
-                    checked = draft.visionEnabled,
-                    onCheckedChange = { draft = draft.copy(visionEnabled = it) },
-                )
-                NumberField(
-                    label = "上下文长度（tokens）",
-                    value = draft.contextWindow,
-                    range = 2_000..2_000_000,
-                    onValueChange = { draft = draft.copy(contextWindow = it) },
-                )
-                NumberField(
-                    label = "压缩阈值（字符）",
-                    value = draft.compactThreshold,
-                    range = 20_000..400_000,
-                    onValueChange = { draft = draft.copy(compactThreshold = it) },
-                )
-                NumberField(
-                    label = "压缩后保留最近消息",
-                    value = draft.compactKeepRecent,
-                    range = 2..20,
-                    onValueChange = { draft = draft.copy(compactKeepRecent = it) },
-                )
-            }
-
-            SettingsCard("联网搜索") {
                 Text(
-                    "Agent 需要时效信息时会调用 web_search。优先用搜索 API；没配 Key 或调用失败会自动退回 DuckDuckGo。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PermissionPill("关闭", draft.searchProvider == "none") {
-                        draft = draft.copy(searchProvider = "none")
-                    }
-                    PermissionPill("Tavily", draft.searchProvider == "tavily") {
-                        draft = draft.copy(searchProvider = "tavily")
-                    }
-                    PermissionPill("Brave", draft.searchProvider == "brave") {
-                        draft = draft.copy(searchProvider = "brave")
-                    }
-                    PermissionPill("Serper", draft.searchProvider == "serper") {
-                        draft = draft.copy(searchProvider = "serper")
-                    }
-                }
-                OutlinedTextField(
-                    value = draft.searchApiKey,
-                    onValueChange = { draft = draft.copy(searchApiKey = it) },
-                    label = { Text("搜索 API Key") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    "Tavily: tavily.com · Brave: api.search.brave.com · Serper: serper.dev；留空则只用 DuckDuckGo。",
+                    "LuoTy Agent v1.0.0\nAPI Key 只保存在本机私有存储（SharedPreferences），不会上传到除你配置的接口之外的任何地方。\n" +
+                        "多会话并发请求、工具调用循环、流式输出均为原生 Kotlin 实现。",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
+                Spacer(Modifier.height(12.dp))
             }
-
-            SettingsCard("系统提示词") {
-                OutlinedTextField(
-                    value = draft.systemPrompt,
-                    onValueChange = { draft = draft.copy(systemPrompt = it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 6,
-                    maxLines = 14,
-                    textStyle = MaterialTheme.typography.bodySmall,
-                )
-                Row {
-                    TextButton(onClick = { draft = draft.copy(systemPrompt = DEFAULT_SYSTEM_PROMPT) }) {
-                        Text("恢复默认")
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "决定 Agent 的做事方式",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.CenterVertically),
-                    )
-                }
-            }
-
-            SettingsCard("工作区") {
-                Text(
-                    "Agent 只能读写这个目录里的文件",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Surface(
-                    color = AppColors.CodeBg,
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = vm.tools.workspace.absolutePath,
-                        fontFamily = Mono,
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(8.dp),
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = { vm.openWorkspace() }) { Text("浏览文件") }
-                    Spacer(Modifier.width(10.dp))
-                    OutlinedButton(onClick = { showClearWorkspace = true }) {
-                        Text("清空工作区", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Text(
-                "LuoTy Agent v1.0.0\nAPI Key 只保存在本机私有存储（SharedPreferences），不会上传到除你配置的接口之外的任何地方。\n" +
-                    "多会话并发请求、工具调用循环、流式输出均为原生 Kotlin 实现。",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            )
-            Spacer(Modifier.height(12.dp))
         }
     }
 
