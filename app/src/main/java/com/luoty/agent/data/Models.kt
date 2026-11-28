@@ -192,6 +192,7 @@ data class Session(
     val queue: List<QueuedMessage> = emptyList(),
     val activeServerId: String = "",
     val projectId: String = "",
+    val pinned: Boolean = false,
 ) {
     val isBlank: Boolean get() = messages.isEmpty()
 
@@ -210,6 +211,7 @@ data class Session(
         if (queue.isNotEmpty()) put("queue", JSONArray(queue.map { it.toJson() }))
         put("activeServerId", activeServerId)
         put("projectId", projectId)
+        put("pinned", pinned)
     }
 
     companion object {
@@ -234,6 +236,7 @@ data class Session(
             }.orEmpty(),
             activeServerId = o.optString("activeServerId", ""),
             projectId = o.optString("projectId", ""),
+            pinned = o.optBoolean("pinned", false),
         )
     }
 }

@@ -206,6 +206,10 @@ class SessionRepository(context: Context) {
         updateSession(sessionId) { it.copy(tasks = tasks) }
     }
 
+    fun setPinned(sessionId: String, pinned: Boolean) {
+        updateSession(sessionId) { it.copy(pinned = pinned) }
+    }
+
     fun setProject(sessionId: String, projectId: String) {
         updateSession(sessionId) { it.copy(projectId = projectId) }
     }

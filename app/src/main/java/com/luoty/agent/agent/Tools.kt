@@ -406,6 +406,14 @@ class ToolRegistry(
         return "已停止静态服务"
     }
 
+    /** 统计路径下文件数，用于「大量删除」判断 */
+    fun countAt(path: String): Int {
+        val file = runCatching { resolve(path) }.getOrNull() ?: return 0
+        if (!file.exists()) return 0
+        if (file.isFile) return 1
+        return runCatching { file.walkTopDown().count { it.isFile } }.getOrDefault(0)
+    }
+
     private suspend fun webSearch(args: JSONObject): String {
         val query = args.optString("query").trim()
         if (query.isBlank()) throw ToolException("query 不能为空")

@@ -13,7 +13,7 @@ data class AppSettings(
     val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
     val autoTitle: Boolean = true,
     val showReasoning: Boolean = true,
-    val permissionMode: String = PERM_FULL,
+    val permissionMode: String = PERM_SAFE,
     val autoCompact: Boolean = true,
     val compactThreshold: Int = 100_000,
     val compactKeepRecent: Int = 6,
@@ -35,6 +35,7 @@ data class AppSettings(
 const val PERM_FULL = "full"
 const val PERM_READONLY = "readonly"
 const val PERM_CONFIRM = "confirm"
+const val PERM_SAFE = "safe"
 
 const val BUSY_QUEUE = "queue"
 const val BUSY_STEER = "steer"
@@ -98,7 +99,8 @@ class SettingsStore(context: Context) {
             ?: DEFAULT_SYSTEM_PROMPT,
         autoTitle = prefs.getBoolean(KEY_AUTO_TITLE, true),
         showReasoning = prefs.getBoolean(KEY_SHOW_REASONING, true),
-        permissionMode = prefs.getString(KEY_PERMISSION, PERM_FULL) ?: PERM_FULL,
+        permissionMode = (prefs.getString(KEY_PERMISSION, PERM_SAFE) ?: PERM_SAFE)
+            .let { if (it == PERM_CONFIRM) PERM_SAFE else it },
         autoCompact = prefs.getBoolean(KEY_AUTO_COMPACT, true),
         compactThreshold = prefs.getInt(KEY_COMPACT_THRESHOLD, 100_000),
         compactKeepRecent = prefs.getInt(KEY_COMPACT_KEEP, 6),

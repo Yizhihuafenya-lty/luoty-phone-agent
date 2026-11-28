@@ -153,8 +153,30 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteSession(id: String) {
         engine.stop(id)
+        val session = repo.find(id)
         repo.deleteSession(id)
         _drafts.update { it - id }
+        if (session != null && session.projectId.isBlank()) {
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                java.io.File(tools.workspace, "sessions/${session.id}").deleteRecursively()
+            }
+        }
+    }
+
+    fun togglePin(sessionId: String) {
+        val session = repo.find(sessionId) ?: return
+        repo.setPinned(sessionId, !session.pinned)
+    }
+
+    fun deleteProject(projectId: String) {
+        val project = _projects.value.firstOrNull { it.id == projectId } ?: return
+        repo.sessions.value.filter { it.projectId == projectId }.forEach { repo.deleteSession(it.id) }
+        _projects.value = _projects.value.filterNot { it.id == projectId }
+        projectStore.save(_projects.value)
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            java.io.File(tools.workspace, "projects/${project.id}").deleteRecursively()
+        }
+        toast("已删除项目「${project.name}」及其工作文件夹")
     }
 
     fun renameSession(id: String, title: String) {

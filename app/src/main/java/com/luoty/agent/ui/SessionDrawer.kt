@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.AlertDialog
@@ -66,12 +67,15 @@ fun SessionDrawer(
     onCreateProject: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
+    onPin: (String) -> Unit,
+    onDeleteProject: (String) -> Unit,
     onSettings: () -> Unit,
     onWorkspace: () -> Unit,
 ) {
     var renameTarget by remember { mutableStateOf<Session?>(null) }
     var deleteTarget by remember { mutableStateOf<Session?>(null) }
     var showProjectDialog by remember { mutableStateOf(false) }
+    var projectToDelete by remember { mutableStateOf<com.luoty.agent.data.Project?>(null) }
     var projectName by remember { mutableStateOf("") }
 
     ModalDrawerSheet(
@@ -170,7 +174,21 @@ fun SessionDrawer(
                     )
                 }
             }
-            if (showProjectDialog) {
+            if (projectToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { projectToDelete = null },
+            title = { Text("删除项目") },
+            text = { Text("会删除项目「${projectToDelete?.name}」、项目内所有会话，以及整个工作文件夹，无法恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    projectToDelete?.let { onDeleteProject(it.id) }
+                    projectToDelete = null
+                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { projectToDelete = null }) { Text("取消") } },
+        )
+    }
+    if (showProjectDialog) {
                 AlertDialog(
                     onDismissRequest = { showProjectDialog = false },
                     title = { Text("新建项目") },
@@ -205,18 +223,87 @@ fun SessionDrawer(
                 modifier = Modifier.padding(start = 18.dp, top = 16.dp, bottom = 6.dp),
             )
 
+            val ordered = sessions.sortedWith(
+                compareByDescending<Session> { it.pinned }.thenByDescending { it.updatedAt },
+            )
+            val uncategorized = ordered.filter { it.projectId.isBlank() }
             LazyColumn(
                 Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                items(sessions, key = { it.id }) { session ->
-                    SessionRow(
-                        session = session,
-                        selected = session.id == currentId,
-                        onClick = { onSelect(session.id) },
-                        onRename = { renameTarget = session },
-                        onDelete = { deleteTarget = session },
-                    )
+                projects.forEach { project ->
+                    val projectSessions = ordered.filter { it.projectId == project.id }
+                    item(key = "head-${project.id}") {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(start = 18.dp, end = 8.dp, top = 10.dp, bottom = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                project.name,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "${projectSessions.size} 个会话",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            )
+                            IconButton(
+                                onClick = { projectToDelete = project },
+                                modifier = Modifier.size(28.dp),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Delete,
+                                    contentDescription = "删除项目",
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                        }
+                    }
+                    if (projectSessions.isEmpty()) {
+                        item(key = "empty-${project.id}") {
+                            Text(
+                                "还没有会话，点上面的项目名新建",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(start = 18.dp, bottom = 4.dp),
+                            )
+                        }
+                    }
+                    items(projectSessions, key = { "s-${it.id}" }) { session ->
+                        SessionRow(
+                            session = session,
+                            selected = session.id == currentId,
+                            onClick = { onSelect(session.id) },
+                            onRename = { renameTarget = session },
+                            onDelete = { deleteTarget = session },
+                            onPin = { onPin(session.id) },
+                        )
+                    }
+                }
+                if (uncategorized.isNotEmpty()) {
+                    item(key = "head-uncat") {
+                        Text(
+                            "未归类",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 18.dp, top = 12.dp, bottom = 2.dp),
+                        )
+                    }
+                    items(uncategorized, key = { "s-${it.id}" }) { session ->
+                        SessionRow(
+                            session = session,
+                            selected = session.id == currentId,
+                            onClick = { onSelect(session.id) },
+                            onRename = { renameTarget = session },
+                            onDelete = { deleteTarget = session },
+                            onPin = { onPin(session.id) },
+                        )
+                    }
                 }
             }
 
@@ -286,6 +373,7 @@ private fun SessionRow(
     onClick: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onPin: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     val background = if (selected) {

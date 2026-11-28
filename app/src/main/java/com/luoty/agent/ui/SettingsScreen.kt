@@ -85,7 +85,7 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.luoty.agent.data.SshServer
 import com.luoty.agent.data.ModelProvider
-import com.luoty.agent.data.PERM_CONFIRM
+import com.luoty.agent.data.PERM_SAFE
 import com.luoty.agent.data.PERM_FULL
 import com.luoty.agent.data.PERM_READONLY
 import com.luoty.agent.ui.theme.AppColors
@@ -505,7 +505,7 @@ fun SettingsScreen(vm: AgentViewModel, settings: AppSettings, onBack: () -> Unit
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(
                             PERM_FULL to "完全权限",
-                            PERM_CONFIRM to "每次确认",
+                            PERM_SAFE to "安全模式",
                             PERM_READONLY to "只读",
                         ).forEach { (mode, label) ->
                             PermissionPill(
@@ -518,7 +518,7 @@ fun SettingsScreen(vm: AgentViewModel, settings: AppSettings, onBack: () -> Unit
                     Text(
                         when (draft.permissionMode) {
                             PERM_READONLY -> "写文件、删文件、执行命令都会被拒绝，只允许读取和搜索。"
-                            PERM_CONFIRM -> "每次写操作都会在聊天里弹出确认卡片，点「允许一次」才执行。"
+                            PERM_SAFE -> "每次写操作都会在聊天里弹出确认卡片，点「允许一次」才执行。"
                             else -> "工具直接执行，不再询问。信任当前模型时最快。"
                         },
                         style = MaterialTheme.typography.labelSmall,

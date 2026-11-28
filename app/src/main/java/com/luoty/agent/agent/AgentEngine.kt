@@ -4,6 +4,7 @@ import com.luoty.agent.data.AppSettings
 import com.luoty.agent.data.ChatMessage
 import com.luoty.agent.data.MessageStatus
 import com.luoty.agent.data.PERM_CONFIRM
+import com.luoty.agent.data.PERM_SAFE
 import com.luoty.agent.data.PERM_READONLY
 import com.luoty.agent.data.Role
 import com.luoty.agent.data.Session
@@ -542,12 +543,60 @@ class AgentEngine(
         if (write && settings.permissionMode == PERM_READONLY) {
             return "只读模式：写操作被拒绝。可以在设置或输入栏切换权限。"
         }
-        if (settings.permissionMode == PERM_CONFIRM) {
-            if (!awaitToolApproval(sessionId, messageId, call)) {
-                return "用户拒绝了这次工具调用。请换一种方式，或先征求用户意见。"
+        if (settings.permissionMode == PERM_SAFE) {
+            when (call.name) {
+                "delete_path" -> {
+                    val path = runCatching {
+                        org.json.JSONObject(call.arguments).optString("path", "")
+                    }.getOrDefault("")
+                    val count = tools.countAt(path)
+                    if (count > 5 && !awaitToolApproval(sessionId, messageId, call)) {
+                        return "用户拒绝了这次大量删除（$count 个文件）。"
+                    }
+                    if (!reviewDelete(sessionId, call, settings)) {
+                        return "AI 审核拒绝了这次删除。请缩小范围，或先向用户说明要删什么。"
+                    }
+                }
+                "web_search", "ssh_exec" -> {
+                    if (!awaitToolApproval(sessionId, messageId, call)) {
+                        return "用户拒绝了这次${if (call.name == "web_search") "联网搜索" else "服务器调用"}。"
+                    }
+                }
             }
         }
         return null
+    }
+
+    /** 删除动作交给一个独立的小模型审核；失败时放行（只作辅助，不保证安全） */
+    private suspend fun reviewDelete(
+        sessionId: String,
+        call: ToolInvocation,
+        settings: AppSettings,
+    ): Boolean {
+        val session = repo.find(sessionId)
+        val root = runCatching { workspaceFor(sessionId).absolutePath }.getOrDefault("")
+        val prompt = buildString {
+            append("会话工作区：").append(root).append('\n')
+            append("会话标题：").append(session?.title ?: "").append('\n')
+            append("删除请求：").append(call.arguments.take(800)).append('\n')
+            append("判断：是否只删工作区内文件、路径是否越界、是否像用户重要数据。")
+            append("只回答 APPROVE 或 DENY: 原因。")
+        }
+        return runCatching {
+            val verdict = client.complete(
+                settings = settings,
+                messages = listOf(
+                    ApiMessage(
+                        "system",
+                        "你是文件操作审核员。只输出 APPROVE 或 DENY: 原因，不要输出其他内容。",
+                    ),
+                    ApiMessage("user", prompt),
+                ),
+                maxTokens = 120,
+                temperature = 0.0,
+            )
+            !verdict.contains("DENY", ignoreCase = true)
+        }.getOrDefault(true)
     }
 
     private suspend fun awaitToolApproval(

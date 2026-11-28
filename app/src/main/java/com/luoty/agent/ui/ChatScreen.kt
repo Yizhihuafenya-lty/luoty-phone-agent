@@ -90,6 +90,7 @@ import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -141,7 +142,7 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.ui.text.style.TextDecoration
 import com.luoty.agent.data.ChatMessage
 import com.luoty.agent.data.MessageStatus
-import com.luoty.agent.data.PERM_CONFIRM
+import com.luoty.agent.data.PERM_SAFE
 import com.luoty.agent.data.PERM_FULL
 import com.luoty.agent.data.PERM_READONLY
 import com.luoty.agent.data.Role
@@ -718,6 +719,8 @@ private fun Composer(
 ) {
     var showSlash by remember { mutableStateOf(false) }
     var showPermissionMenu by remember { mutableStateOf(false) }
+    var showFullPermDialog by remember { mutableStateOf(false) }
+    var riskAccepted by remember { mutableStateOf(false) }
     var showAttachMenu by remember { mutableStateOf(false) }
     var editingQueue by remember { mutableStateOf<QueuedMessage?>(null) }
     if (editingQueue != null) {
@@ -953,16 +956,55 @@ private fun Composer(
                     )
                     DropdownMenu(expanded = showPermissionMenu, onDismissRequest = { showPermissionMenu = false }) {
                         DropdownMenuItem(
-                            text = { Text("完全权限 · 直接执行工具") },
-                            onClick = { onPermission(PERM_FULL); showPermissionMenu = false },
+                            text = { Text("安全模式 · 删除/搜索/服务器才确认") },
+                            onClick = { onPermission(PERM_SAFE); showPermissionMenu = false },
                         )
                         DropdownMenuItem(
                             text = { Text("只读 · 拒绝写文件和命令") },
                             onClick = { onPermission(PERM_READONLY); showPermissionMenu = false },
                         )
                         DropdownMenuItem(
-                            text = { Text("每次确认 · 写操作先问你") },
-                            onClick = { onPermission(PERM_CONFIRM); showPermissionMenu = false },
+                            text = { Text("完全权限 · 直接执行工具") },
+                            onClick = {
+                                showPermissionMenu = false
+                                riskAccepted = false
+                                showFullPermDialog = true
+                            },
+                        )
+                    }
+                    if (showFullPermDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showFullPermDialog = false },
+                            title = { Text("确认启用完全权限？") },
+                            text = {
+                                Column {
+                                    Text(
+                                        "启用完全权限后，智能体会减少确认步骤，并且可以直接执行更多操作，" +
+                                            "包括敏感操作、文件修改或外部命令。仅建议在你信任当前任务时使用。",
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = riskAccepted,
+                                            onCheckedChange = { riskAccepted = it },
+                                        )
+                                        Text("我已了解风险，并愿意继续", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    enabled = riskAccepted,
+                                    onClick = {
+                                        onPermission(PERM_FULL)
+                                        riskAccepted = false
+                                        showFullPermDialog = false
+                                    },
+                                ) { Text("启用完全权限") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showFullPermDialog = false }) { Text("取消") }
+                            },
                         )
                     }
                 }

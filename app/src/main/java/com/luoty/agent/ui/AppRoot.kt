@@ -64,6 +64,8 @@ fun AppRoot(vm: AgentViewModel) {
                 },
                 onRename = { id, title -> vm.renameSession(id, title) },
                 onDelete = { id -> vm.deleteSession(id) },
+                onPin = { id -> vm.togglePin(id) },
+                onDeleteProject = { id -> vm.deleteProject(id) },
                 onSettings = {
                     vm.openSettings()
                     scope.launch { drawerState.close() }
