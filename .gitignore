@@ -26,3 +26,6 @@ server/*.log
 
 dist/*.apk
 dist/*.aab
+
+*.single
+app/src/main/java/com/luoty/agent/ui/*.bak
